@@ -1,18 +1,87 @@
 #include "thread.h"
 #include "socketserver.h"
+#include "socket.h"
 #include <stdlib.h>
 #include <time.h>
 #include <list>
 #include <vector>
 #include <algorithm>
+#include <bits/stdc++.h>
 
 using namespace Sync;
+
+
+// This thread handles each client connection
+class SocketThread : public Thread
+{
+private:
+    // Reference to our connected socket
+    Socket& socket;
+    // The data we are receiving
+    ByteArray data;
+public:
+    SocketThread(Socket& socket)
+    : socket(socket)
+    {}
+
+    ~SocketThread()
+    {}
+
+    Socket& GetSocket()
+    {
+        return socket;
+    }
+
+    virtual long ThreadMain()
+    {
+        while(1)
+        {
+            try
+            {
+                // Wait for data from client
+                socket.Read(data);
+                
+                //make string object to hold data from array
+                std::string str = data.ToString();
+                
+                if (str == "done"){
+                    break;//break out of loop if input is done
+                }
+                
+               int n = str.length();//reverse string algorithm
+		for(int i = 0; i < n/2; i++){
+		std::swap(str[i], str[n - i - 1]);
+		}
+		
+		
+                data = ByteArray(str);//make the data the reversed string
+               
+                // Send it back to client
+                socket.Write(data);
+                
+            }
+            catch (...)
+            {}
+        }
+        return 0;
+    }
+};
+
 
 // This thread handles the server operations
 class ServerThread : public Thread
 {
 private:
+	//creating variables for ue in the class
     SocketServer& server;
+    
+    std::vector<SocketThread*> socketThreadVector;
+    //making vector for string operations
+    
+    //creating byte array
+    ByteArray data;
+    
+   
 public:
     ServerThread(SocketServer& server)
     : server(server)
@@ -20,26 +89,29 @@ public:
 
     ~ServerThread()
     {
-        // Cleanup
-	//...
+    	//cleanup algorithm
+	for (int i = 0; i < socketThreadVector.size(); i++){
+            Socket& socket = socketThreadVector[i]->GetSocket();
+            socket.Close();
+            }
     }
 
     virtual long ThreadMain()
     {
-        // Wait for a client socket connection
-        Socket* newConnection = new Socket(server.Accept());
+    	while(true){
+    		
+        	// Wait for a client socket connection
+        	Socket* newConnection = new Socket(server.Accept());
 
-        // A reference to this pointer 
-        Socket& socketReference = *newConnection;
-	//You can use this to read data from socket and write data to socket. You may want to put this read/write somewhere else. You may use ByteArray
-	// Wait for data
-        //socketReference.Read(data);
-        // Send it back
-        //socketReference.Write(data);
-	return 1;
+        	// A reference to this pointer 
+        	Socket& socketReference = *newConnection;
+        	
+        	//vector for multiple threads
+        	socketThreadVector.push_back(new SocketThread(socketReference));
+        		
+        }
     }
 };
-
 
 int main(void)
 {
@@ -59,3 +131,5 @@ int main(void)
     server.Shutdown();
 
 }
+
+
